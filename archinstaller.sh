@@ -232,11 +232,10 @@ mount "$EFI_PART" /mnt/boot
 echo "Installing base system (this will take a while)..."
 PACKAGES="base base-devel linux linux-firmware intel-ucode neovim git sudo \
 networkmanager wpa_supplicant hyprland wayland-protocols wlroots waybar hyprpaper sof-firmware\
-mako xdg-desktop-portal-hyprland xorg-xwayland kitty zsh starship \
+mako xdg-desktop-portal-hyprland xorg-xwayland xdg-utils kitty zsh starship \
 htop ncdu firefox curl wget pipewire pipewire-pulse pipewire-alsa wireplumber \
 pavucontrol playerctl ttf-fira-code noto-fonts noto-fonts-emoji \
-libinput xf86-input-libinput greetd greetd-agreety brightnessctl kbdlight swaylock thunar dosfstools \
-reflector \
+libinput xf86-input-libinput greetd greetd-agreety brightnessctl kbdlight swaylock thunar dosfstools reflector \
 tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
 xdg-user-dirs grim slurp wl-clipboard satty ufw zram-generator \
 man-db man-pages fuzzel"
@@ -772,15 +771,15 @@ cd yay
 makepkg -si --noconfirm
 
 # Install AUR packages
-yay -S --noconfirm mbpfan-git || echo "⚠️  Warning: mbpfan-git failed to install"
-yay -S --noconfirm bcwc-pcie-git || echo "⚠️  Warning: bcwc-pcie-git failed to install"
+# yay -S --noconfirm mbpfan-git || echo "⚠️  Warning: mbpfan-git failed to install"
+# yay -S --noconfirm bcwc-pcie-git || echo "⚠️  Warning: bcwc-pcie-git failed to install"
 yay -S --noconfirm libinput-gestures || echo "⚠️  Warning: libinput-gestures failed to install"
 
 EOFUSER
 
-# --- Configure mbpfan ---
+# --- Configure mbpfan
 echo "Configuring mbpfan (MacBook fan control)..."
-systemctl enable mbpfan
+systemctl enable mbpfan ---
 
 # --- Configure libinput-gestures ---
 echo "Configuring touchpad gestures for user $USERNAME..."
@@ -897,6 +896,7 @@ echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
 
 
 
