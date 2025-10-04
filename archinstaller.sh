@@ -540,7 +540,7 @@ bind = \$mainMod, Q, killactive,
 bind = \$mainMod, M, exit,
 bind = \$mainMod, E, exec, thunar
 bind = \$mainMod, V, togglefloating,
-bind = \$mainMod, R, exec, walker
+bind = \$mainMod, SPACE, exec, fuzzel
 bind = \$mainMod, P, pseudo,
 bind = \$mainMod, J, togglesplit,
 bind = \$mainMod, F, fullscreen,
@@ -884,6 +884,7 @@ echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
 
 
 
