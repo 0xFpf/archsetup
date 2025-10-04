@@ -227,11 +227,11 @@ mount "$EFI_PART" /mnt/boot
 # --- 7. Install base system ---
 echo "Installing base system (this will take a while)..."
 PACKAGES="base base-devel linux linux-firmware intel-ucode neovim git sudo \
-networkmanager wpa_supplicant hyprland wayland-protocols wlroots waybar \
+networkmanager wpa_supplicant hyprland wayland-protocols wlroots waybar sof-firmware\
 mako xdg-desktop-portal-hyprland xorg-xwayland kitty zsh starship \
 htop ncdu firefox curl wget pipewire pipewire-pulse pipewire-alsa wireplumber \
 pavucontrol playerctl ttf-fira-code noto-fonts noto-fonts-emoji \
-libinput xf86-input-libinput greetd brightnessctl swaylock thunar dosfstools \
+libinput xf86-input-libinput greetd greetd-agreety brightnessctl swaylock thunar dosfstools \
 broadcom-wl-dkms linux-headers reflector \
 tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
 xdg-user-dirs grim slurp wl-clipboard ufw zram-generator \
@@ -246,6 +246,12 @@ esac
 # Add bootloader packages
 if [[ $BOOTLOADER == "grub" ]]; then
     PACKAGES="$PACKAGES grub efibootmgr"
+fi
+
+echo "Verifying build dependencies..."
+if ! pacman -Si base-devel &>/dev/null; then
+    echo "ERROR: base-devel not available in repositories"
+    exit 1
 fi
 
 pacstrap /mnt $PACKAGES
@@ -457,7 +463,7 @@ cat > /home/"\$USERNAME"/.config/hypr/hyprland.conf <<'HYPREOF'
 monitor=,preferred,auto,1
 
 # HiDPI scaling for MacBook Retina displays
-env = GDK_SCALE,2
+env = GDK_SCALE,1.5
 env = XCURSOR_SIZE,32
 
 # Autostart
@@ -719,11 +725,28 @@ wallpaper = ,~/.config/hypr/wallpaper.jpg
 splash = false
 HYPRPAPEREOF
 
-# Create a simple solid color wallpaper placeholder
+# Download wallpaper or skip if it fails
 mkdir -p /home/"\$USERNAME"/.config/hypr
-convert -size 2560x1600 xc:#1e1e2e /home/"\$USERNAME"/.config/hypr/wallpaper.jpg 2>/dev/null || echo "Note: ImageMagick not available, wallpaper placeholder not created. Add your own wallpaper.jpg later."
+if curl -fsSL -o /home/"\$USERNAME"/.config/hypr/wallpaper.png "https://gruvbox-wallpapers.pages.dev/wallpapers/minimalistic/great-wave-of-kanagawa-gruvbox.png"; then
+    sed -i 's/wallpaper.jpg/wallpaper.png/g' /home/"\$USERNAME"/.config/hypr/hyprpaper.conf
+    echo "Wallpaper downloaded successfully"
+else
+    echo "Note: Wallpaper download failed, skipping. Add your own wallpaper later."
+    # Create blank hyprpaper config
+    cat > /home/"\$USERNAME"/.config/hypr/hyprpaper.conf <<'HYPRPAPEREOF'
+# Add your wallpaper configuration here
+# preload = ~/.config/hypr/wallpaper.png
+# wallpaper = ,~/.config/hypr/wallpaper.png
+HYPRPAPEREOF
+fi
 
 chown -R "\$USERNAME:\$USERNAME" /home/"\$USERNAME"/.config
+
+# --- Verify polkit-gnome path exists ---
+if [[ ! -f /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1 ]]; then
+    echo "WARNING: polkit-gnome authentication agent not found at expected path"
+    echo "Polkit elevation prompts may not work correctly"
+fi
 
 # Create screenshots directory
 mkdir -p /home/"\$USERNAME"/Pictures/Screenshots
@@ -738,7 +761,12 @@ cd yay
 makepkg -si --noconfirm
 
 # Install AUR packages
-yay -S --noconfirm hyprpaper satty mbpfan-git bcwc-pcie-git libinput-gestures
+yay -S --noconfirm hyprpaper || echo "⚠️  Warning: hyprpaper failed to install"
+yay -S --noconfirm satty || echo "⚠️  Warning: satty failed to install"
+yay -S --noconfirm mbpfan-git || echo "⚠️  Warning: mbpfan-git failed to install"
+yay -S --noconfirm bcwc-pcie-git || echo "⚠️  Warning: bcwc-pcie-git failed to install"
+yay -S --noconfirm libinput-gestures || echo "⚠️  Warning: libinput-gestures failed to install"
+
 EOFUSER
 
 # --- Configure mbpfan ---
@@ -841,4 +869,5 @@ echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
 
