@@ -783,8 +783,20 @@ echo "Configuring mbpfan (MacBook fan control)..."
 systemctl enable mbpfan
 
 # --- Configure libinput-gestures ---
-echo "Configuring touchpad gestures..."
-sudo -u "\$USERNAME" libinput-gestures-setup autostart
+echo "Configuring touchpad gestures for user $USERNAME..."
+runuser -u "$USERNAME" -- mkdir -p /home/$USERNAME/.config
+cat <<EOF > /home/$USERNAME/.config/libinput-gestures.conf
+gesture swipe left 3 hyprctl dispatch workspace e-1
+gesture swipe right 3 hyprctl dispatch workspace e+1
+gesture swipe up 3 hyprctl dispatch fullscreen 1
+gesture swipe down 3 hyprctl dispatch fullscreen 0
+EOF
+chown -R $USERNAME:$USERNAME /home/$USERNAME/.config
+
+# Enable autostart for gestures
+runuser -u "$USERNAME" -- libinput-gestures-setup autostart
+runuser -u "$USERNAME" -- libinput-gestures-setup start
+
 
 # --- Enable services ---
 echo "Enabling services..."
@@ -897,6 +909,7 @@ echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
 
 
 
