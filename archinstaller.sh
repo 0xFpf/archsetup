@@ -131,6 +131,19 @@ if [[ $DISK_SIZE_GB -lt 32 ]]; then
 fi
 
 echo ""
+echo "=== IMPORTANT SECURITY WARNING ==="
+echo "UFW (firewall) will be installed but NOT enabled by default."
+echo "After installation, you should enable it with: sudo ufw enable"
+echo "This allows you to test your system first before blocking ports."
+echo ""
+read -p "Type 'I UNDERSTAND' to acknowledge: " UFW_ACK
+
+if [[ "$UFW_ACK" != "I UNDERSTAND" ]]; then
+    echo "Aborted."
+    exit 1
+fi
+
+echo ""
 echo "=== Configuration Summary ==="
 echo "Timezone: $TIMEZONE"
 echo "Locale: $LOCALE"
@@ -201,9 +214,9 @@ if [[ $FILESYSTEM == "btrfs" ]]; then
     btrfs subvolume create /mnt/@
     btrfs subvolume create /mnt/@home
     umount /mnt
-    mount -o subvol=@ "$ROOT_PART" /mnt
+    mount -o subvol=@,compress=zstd,noatime,space_cache=v2 "$ROOT_PART" /mnt
     mkdir -p /mnt/home
-    mount -o subvol=@home "$ROOT_PART" /mnt/home
+    mount -o subvol=@home,compress=zstd,noatime,space_cache=v2 "$ROOT_PART" /mnt/home
 else
     mount "$ROOT_PART" /mnt
 fi
@@ -214,14 +227,15 @@ mount "$EFI_PART" /mnt/boot
 # --- 7. Install base system ---
 echo "Installing base system (this will take a while)..."
 PACKAGES="base base-devel linux linux-firmware intel-ucode neovim git sudo \
-networkmanager hyprland wayland-protocols wlroots waybar \
-mako xdg-desktop-portal-wlr xorg-xwayland kitty zsh starship \
-htop ncdu firefox curl wget pulseaudio pulseaudio-alsa pavucontrol playerctl \
-ttf-fira-code noto-fonts noto-fonts-emoji libinput \
-greetd brightnessctl swaylock thunar dosfstools \
+networkmanager wpa_supplicant hyprland wayland-protocols wlroots waybar \
+mako xdg-desktop-portal-hyprland xorg-xwayland kitty zsh starship \
+htop ncdu firefox curl wget pipewire pipewire-pulse pipewire-alsa wireplumber \
+pavucontrol playerctl ttf-fira-code noto-fonts noto-fonts-emoji \
+libinput xf86-input-libinput greetd brightnessctl swaylock thunar dosfstools \
 broadcom-wl-dkms linux-headers reflector \
-tlp thermald ntfs-3g exfatprogs unzip polkit xdg-user-dirs \
-grim slurp wl-clipboard iwd ufw zram-generator"
+tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
+xdg-user-dirs grim slurp wl-clipboard ufw zram-generator \
+man-db man-pages walker"
 
 # Add filesystem tools
 case $FILESYSTEM in
@@ -250,7 +264,15 @@ EOF
 
 # --- 10. Create swap file (2GB) ---
 echo "Creating 2GB swap file..."
-dd if=/dev/zero of=/mnt/swapfile bs=1M count=2048 status=progress
+if [[ $FILESYSTEM == "btrfs" ]]; then
+    # Btrfs-specific swap file creation
+    truncate -s 0 /mnt/swapfile
+    chattr +C /mnt/swapfile
+    btrfs property set /mnt/swapfile compression none
+    dd if=/dev/zero of=/mnt/swapfile bs=1M count=2048 status=progress
+else
+    dd if=/dev/zero of=/mnt/swapfile bs=1M count=2048 status=progress
+fi
 chmod 600 /mnt/swapfile
 mkswap /mnt/swapfile
 echo "/swapfile none swap defaults 0 0" >> /mnt/etc/fstab
@@ -300,6 +322,9 @@ EOL
 echo "Setting root password..."
 echo "root:\$USER_PASSWORD" | chpasswd
 
+# --- Change root shell to zsh ---
+chsh -s /bin/zsh root
+
 # --- Configure mkinitcpio ---
 echo "Configuring mkinitcpio..."
 sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf kms keyboard keymap consolefont block filesystems fsck)/' /etc/mkinitcpio.conf
@@ -346,7 +371,20 @@ EOL
 elif [[ \$BOOTLOADER == "grub" ]]; then
     echo "Installing GRUB..."
     grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
+    
+    # Ensure Intel microcode is loaded first
+    sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
+    
     grub-mkconfig -o /boot/grub/grub.cfg
+fi
+
+# --- Verify NVRAM boot entries ---
+echo "Verifying NVRAM boot entries..."
+efibootmgr -v
+if ! efibootmgr | grep -i "arch\|grub"; then
+    echo "WARNING: No Arch/GRUB boot entry found in NVRAM!"
+    echo "This may indicate a problem with EFI variables."
+    echo "Boot entries shown above - please verify manually."
 fi
 
 # --- Create regular user ---
@@ -418,10 +456,15 @@ cat > /home/"\$USERNAME"/.config/hypr/hyprland.conf <<'HYPREOF'
 # Monitor configuration
 monitor=,preferred,auto,1
 
+# HiDPI scaling for MacBook Retina displays
+env = GDK_SCALE,2
+env = XCURSOR_SIZE,32
+
 # Autostart
 exec-once = waybar
 exec-once = mako
 exec-once = hyprpaper
+exec-once = /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
 
 # Input configuration
 input {
@@ -548,6 +591,138 @@ HYPREOF
 # Replace keymap placeholder
 sed -i "s/KEYMAP_PLACEHOLDER/\$KEYMAP/" /home/"\$USERNAME"/.config/hypr/hyprland.conf
 
+# --- Create basic Waybar configuration ---
+echo "Creating Waybar configuration..."
+mkdir -p /home/"\$USERNAME"/.config/waybar
+
+cat > /home/"\$USERNAME"/.config/waybar/config <<'WAYBAREOF'
+{
+    "layer": "top",
+    "position": "top",
+    "height": 30,
+    "modules-left": ["hyprland/workspaces", "hyprland/window"],
+    "modules-center": ["clock"],
+    "modules-right": ["pulseaudio", "network", "battery", "tray"],
+    
+    "hyprland/workspaces": {
+        "disable-scroll": false,
+        "all-outputs": true,
+        "format": "{icon}",
+        "format-icons": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "6": "6",
+            "7": "7",
+            "8": "8",
+            "9": "9",
+            "10": "10"
+        }
+    },
+    
+    "clock": {
+        "format": "{:%H:%M}",
+        "format-alt": "{:%Y-%m-%d}",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
+    },
+    
+    "battery": {
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{capacity}% {icon}",
+        "format-charging": "{capacity}% ",
+        "format-plugged": "{capacity}% ",
+        "format-icons": ["", "", "", "", ""]
+    },
+    
+    "network": {
+        "format-wifi": "{essid} ",
+        "format-ethernet": "{ipaddr} ",
+        "format-disconnected": "Disconnected ⚠",
+        "tooltip-format": "{ifname}: {ipaddr}"
+    },
+    
+    "pulseaudio": {
+        "format": "{volume}% {icon}",
+        "format-bluetooth": "{volume}% {icon}",
+        "format-muted": "",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "",
+            "headset": "",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": ["", ""]
+        },
+        "on-click": "pavucontrol"
+    }
+}
+WAYBAREOF
+
+cat > /home/"\$USERNAME"/.config/waybar/style.css <<'WAYBARCSS'
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "Fira Code", monospace;
+    font-size: 13px;
+    min-height: 0;
+}
+
+window#waybar {
+    background: rgba(30, 30, 46, 0.9);
+    color: #cdd6f4;
+}
+
+#workspaces button {
+    padding: 0 10px;
+    color: #cdd6f4;
+    background: transparent;
+}
+
+#workspaces button.active {
+    background: rgba(137, 180, 250, 0.3);
+    color: #89b4fa;
+}
+
+#workspaces button:hover {
+    background: rgba(205, 214, 244, 0.2);
+}
+
+#clock, #battery, #network, #pulseaudio, #tray {
+    padding: 0 10px;
+    margin: 0 2px;
+}
+
+#battery.charging {
+    color: #a6e3a1;
+}
+
+#battery.warning:not(.charging) {
+    color: #f9e2af;
+}
+
+#battery.critical:not(.charging) {
+    color: #f38ba8;
+}
+WAYBARCSS
+
+# --- Create basic hyprpaper configuration ---
+echo "Creating hyprpaper configuration..."
+cat > /home/"\$USERNAME"/.config/hypr/hyprpaper.conf <<'HYPRPAPEREOF'
+preload = ~/.config/hypr/wallpaper.jpg
+wallpaper = ,~/.config/hypr/wallpaper.jpg
+splash = false
+HYPRPAPEREOF
+
+# Create a simple solid color wallpaper placeholder
+mkdir -p /home/"\$USERNAME"/.config/hypr
+convert -size 2560x1600 xc:#1e1e2e /home/"\$USERNAME"/.config/hypr/wallpaper.jpg 2>/dev/null || echo "Note: ImageMagick not available, wallpaper placeholder not created. Add your own wallpaper.jpg later."
+
 chown -R "\$USERNAME:\$USERNAME" /home/"\$USERNAME"/.config
 
 # Create screenshots directory
@@ -563,7 +738,7 @@ cd yay
 makepkg -si --noconfirm
 
 # Install AUR packages
-yay -S --noconfirm walker-bin hyprpaper-git satty mbpfan-git bcwc-pcie-git libinput-gestures
+yay -S --noconfirm hyprpaper satty mbpfan-git bcwc-pcie-git libinput-gestures
 EOFUSER
 
 # --- Configure mbpfan ---
@@ -577,25 +752,23 @@ sudo -u "\$USERNAME" libinput-gestures-setup autostart
 # --- Enable services ---
 echo "Enabling services..."
 systemctl enable NetworkManager
-systemctl enable iwd
 systemctl enable greetd
 systemctl enable systemd-timesyncd
 systemctl enable tlp
 systemctl enable thermald
-systemctl enable ufw
-systemctl enable systemd-zram-setup@zram0.service
+systemctl enable acpid
 
-# --- Configure NetworkManager to use iwd ---
+# --- Configure NetworkManager to use wpa_supplicant ---
 cat > /etc/NetworkManager/conf.d/wifi_backend.conf <<EOL
 [device]
-wifi.backend=iwd
+wifi.backend=wpa_supplicant
 EOL
 
-# --- Configure UFW ---
-echo "Configuring firewall..."
+# --- Configure UFW (not enabled) ---
+echo "Configuring firewall rules (NOT enabling)..."
 ufw default deny incoming
 ufw default allow outgoing
-ufw enable
+echo "UFW is installed but NOT enabled. Enable it manually with: sudo ufw enable"
 
 # --- Configure greetd ---
 echo "Configuring greetd..."
@@ -604,7 +777,7 @@ cat > /etc/greetd/config.toml <<EOL
 vt = 1
 
 [default_session]
-command = "agreety --cmd Hyprland"
+command = "agreety -c Hyprland"
 user = "\$USERNAME"
 EOL
 
@@ -642,8 +815,10 @@ echo "Configuration Summary:"
 echo "- Bootloader: $BOOTLOADER"
 echo "- Filesystem: $FILESYSTEM"
 echo "- Swap: 512MB zram + 2GB swap file"
-echo "- Power: TLP + thermald enabled"
-echo "- Firewall: UFW enabled (blocking incoming)"
+echo "- Audio: PipeWire (with PulseAudio compatibility)"
+echo "- WiFi: wpa_supplicant via NetworkManager"
+echo "- Power: TLP + thermald + acpid enabled"
+echo "- Firewall: UFW installed but not enabled"
 echo "- Mirror updates: Weekly (European servers)"
 echo "- MacBook optimizations: mbpfan, bcwc-pcie, gestures"
 echo ""
@@ -666,3 +841,4 @@ echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
