@@ -902,13 +902,14 @@ echo "- Configure gestures: edit ~/.config/libinput-gestures.conf"
 echo ""
 echo "Hyprland shortcuts:"
 echo "- SUPER+Enter: Terminal"
-echo "- SUPER+R: Application launcher"
+echo "- SUPER+SPACE: Application launcher"
 echo "- SUPER+E: File manager"
 echo "- SUPER+Q: Close window"
 echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
 
 
 
