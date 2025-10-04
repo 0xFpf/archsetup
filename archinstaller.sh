@@ -795,11 +795,22 @@ systemctl enable thermald
 systemctl enable acpid
 systemctl enable greetd
 
-
 # --- Disable Bluetooth (not needed) ---
 echo "Disabling Bluetooth services..."
 systemctl mask bluetooth.service
 systemctl mask bluetooth.target
+
+# --- Fix Broadcom BCM4360 conflict ---
+echo "Applying Broadcom Wi-Fi driver fix..."
+cat <<EOF > /etc/modprobe.d/blacklist-broadcom.conf
+blacklist b43
+blacklist bcma
+blacklist brcmsmac
+blacklist brcmfmac
+blacklist ssb
+EOF
+
+echo "wl" > /etc/modules-load.d/wl.conf
 
 # --- Configure NetworkManager to use wpa_supplicant ---
 cat > /etc/NetworkManager/conf.d/wifi_backend.conf <<EOL
