@@ -231,7 +231,7 @@ networkmanager wpa_supplicant hyprland wayland-protocols wlroots waybar hyprpape
 mako xdg-desktop-portal-hyprland xorg-xwayland kitty zsh starship \
 htop ncdu firefox curl wget pipewire pipewire-pulse pipewire-alsa wireplumber \
 pavucontrol playerctl ttf-fira-code noto-fonts noto-fonts-emoji \
-libinput xf86-input-libinput greetd greetd-agreety brightnessctl swaylock thunar dosfstools \
+libinput xf86-input-libinput greetd greetd-agreety brightnessctl kbdlight swaylock thunar dosfstools \
 broadcom-wl-dkms linux-headers reflector \
 tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
 xdg-user-dirs grim slurp wl-clipboard satty ufw zram-generator \
@@ -584,6 +584,10 @@ bindm = \$mainMod, mouse:273, resizewindow
 bind = , XF86MonBrightnessUp, exec, brightnessctl set +5%
 bind = , XF86MonBrightnessDown, exec, brightnessctl set 5%-
 
+# Keyboard backlight
+bind = , XF86KbdBrightnessUp, exec, kbdlight up
+bind = , XF86KbdBrightnessDown, exec, kbdlight down
+
 # Volume
 bind = , XF86AudioRaiseVolume, exec, pactl set-sink-volume @DEFAULT_SINK@ +5%
 bind = , XF86AudioLowerVolume, exec, pactl set-sink-volume @DEFAULT_SINK@ -5%
@@ -867,6 +871,7 @@ echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
 
 
 
