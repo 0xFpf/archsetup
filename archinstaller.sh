@@ -165,8 +165,12 @@ fi
 # --- 1. Update mirrorlist with reflector ---
 echo "Updating mirrorlist with fastest European mirrors..."
 pacman -Sy --noconfirm reflector
-reflector --country GB,FR,DE,NL,BE,SE,NO,DK --protocol https --latest 20 --sort rate --save /etc/pacman.d/mirrorlist
+reflector --country GB,FR,DE,NL,BE,SE,NO,DK,PL --protocol https --latest 20 --sort rate --save /etc/pacman.d/mirrorlist
 echo "Mirrorlist updated!"
+
+# --- Enable parallel downloads ---
+echo "Enabling parallel downloads..."
+sed -i 's/^#ParallelDownloads/ParallelDownloads/' /etc/pacman.conf
 
 # --- 2. Set keyboard layout for installation ---
 loadkeys "$KEYMAP"
@@ -235,7 +239,7 @@ libinput xf86-input-libinput greetd greetd-agreety brightnessctl kbdlight swaylo
 broadcom-wl-dkms linux-headers reflector \
 tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
 xdg-user-dirs grim slurp wl-clipboard satty ufw zram-generator \
-man-db man-pages walker"
+man-db man-pages fuzzel"
 
 # Add filesystem tools
 case $FILESYSTEM in
@@ -299,6 +303,9 @@ FILESYSTEM="$FILESYSTEM"
 TARGET_DISK="$TARGET_DISK"
 EFI_PART="$EFI_PART"
 ROOT_PART="$ROOT_PART"
+
+# --- Enable parallel downloads ---
+sed -i 's/^#ParallelDownloads/ParallelDownloads/' /etc/pacman.conf
 
 # --- Timezone ---
 echo "Setting timezone..."
@@ -787,6 +794,12 @@ systemctl enable systemd-timesyncd
 systemctl enable tlp
 systemctl enable thermald
 systemctl enable acpid
+
+
+# --- Disable Bluetooth (not needed) ---
+echo "Disabling Bluetooth services..."
+systemctl mask bluetooth.service
+systemctl mask bluetooth.target
 
 # --- Configure NetworkManager to use wpa_supplicant ---
 cat > /etc/NetworkManager/conf.d/wifi_backend.conf <<EOL
