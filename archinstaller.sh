@@ -789,7 +789,7 @@ sudo -u "\$USERNAME" libinput-gestures-setup autostart
 # --- Enable services ---
 echo "Enabling services..."
 systemctl enable NetworkManager
-systemctl enable greetd
+systemctl enable d
 systemctl enable systemd-timesyncd
 systemctl enable tlp
 systemctl enable thermald
@@ -814,15 +814,17 @@ ufw default allow outgoing
 echo "UFW is installed but NOT enabled. Enable it manually with: sudo ufw enable"
 
 # --- Configure greetd ---
-echo "Configuring greetd..."
-cat > /etc/greetd/config.toml <<EOL
+# --- Configure greetd (no autologin, prefilled username) ---
+echo "Configuring greetd for manual login with prefilled username..."
+
+cat <<EOF > /etc/greetd/config.toml
 [terminal]
 vt = 1
 
 [default_session]
-command = "agreety -c Hyprland"
-user = "\$USERNAME"
-EOL
+command = "agreety --cmd 'Hyprland' --username '$USERNAME'"
+user = "greeter"
+EOF
 
 # --- Configure TLP for battery optimization ---
 echo "Configuring TLP..."
@@ -884,6 +886,7 @@ echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
 
 
 
