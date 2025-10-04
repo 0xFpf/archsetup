@@ -789,11 +789,11 @@ sudo -u "\$USERNAME" libinput-gestures-setup autostart
 # --- Enable services ---
 echo "Enabling services..."
 systemctl enable NetworkManager
-systemctl enable d
 systemctl enable systemd-timesyncd
 systemctl enable tlp
 systemctl enable thermald
 systemctl enable acpid
+systemctl enable greetd
 
 
 # --- Disable Bluetooth (not needed) ---
