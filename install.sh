@@ -265,11 +265,11 @@ mount "$EFI_PART" /mnt/boot
 # --- 7. Install base system ---
 echo "Installing base system (this will take a while)..."
 PACKAGES="base base-devel linux linux-firmware intel-ucode neovim git sudo \
-networkmanager wpa_supplicant hyprland wayland-protocols wlroots waybar hyprpaper sof-firmware\
+networkmanager wpa_supplicant hyprland wayland-protocols waybar hyprpaper sof-firmware \
 mako xdg-desktop-portal-hyprland xorg-xwayland kitty zsh starship \
 htop ncdu firefox curl wget pipewire pipewire-pulse pipewire-alsa wireplumber \
 pavucontrol playerctl ttf-fira-code noto-fonts noto-fonts-emoji \
-libinput xf86-input-libinput greetd greetd-agreety brightnessctl kbdlight swaylock thunar dosfstools \
+libinput xf86-input-libinput greetd greetd-agreety brightnessctl swaylock thunar dosfstools \
 broadcom-wl-dkms linux-headers reflector \
 tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
 xdg-user-dirs grim slurp wl-clipboard satty ufw zram-generator \
@@ -292,7 +292,29 @@ if ! pacman -Si base-devel &>/dev/null; then
     exit 1
 fi
 
-pacstrap /mnt $PACKAGES
+for pkg in $PACKAGES; do
+    echo "Installing $pkg..."
+    if pacstrap /mnt "$pkg"; then
+        echo "✓ $pkg installed successfully."
+    else
+        echo "Failed to install $pkg."
+        read -p "Skip and continue? if no the script will halt (y/n): " choice
+        case "$choice" in
+            y|Y)
+                echo "⚠️ Skipping $pkg."
+                ;;
+            n|N)
+                echo "Stopping installation."
+                break
+                ;;
+            *)
+                echo "Invalid input. Stopping."
+                break
+                ;;
+        esac
+    fi
+done
+
 
 # --- 8. Generate fstab ---
 echo "Generating fstab..."
@@ -809,6 +831,7 @@ makepkg -si --noconfirm
 yay -S --noconfirm mbpfan-git || echo "⚠️  Warning: mbpfan-git failed to install"
 yay -S --noconfirm bcwc-pcie-git || echo "⚠️  Warning: bcwc-pcie-git failed to install"
 yay -S --noconfirm libinput-gestures || echo "⚠️  Warning: libinput-gestures failed to install"
+yay -S --noconfirm kbdlight || echo "⚠️  Warning: kbdlight failed to install"
 
 EOFUSER
 
