@@ -273,7 +273,7 @@ libinput xf86-input-libinput greetd greetd-agreety brightnessctl swaylock thunar
 broadcom-wl-dkms linux-headers reflector \
 tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
 xdg-user-dirs grim slurp wl-clipboard satty ufw zram-generator \
-man-db man-pages fuzzel"
+man-db man-pages fuzzel efibootmgr"
 
 # Add filesystem tools
 case $FILESYSTEM in
