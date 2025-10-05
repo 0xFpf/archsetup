@@ -15,152 +15,196 @@ echo "Checking available disk space..."
 AVAILABLE_SPACE=$(df -BG / | tail -1 | awk '{print $4}' | sed 's/G//')
 if [[ $AVAILABLE_SPACE -lt 20 ]]; then
     echo "WARNING: Less than 20GB available. Installation may fail."
-    read -p "Continue anyway? (yes/no): " SPACE_CONTINUE
-    if [[ "$SPACE_CONTINUE" != "yes" ]]; then
+    read -p "Continue anyway? (y/n): " SPACE_CONTINUE
+    if [[ "$SPACE_CONTINUE" != "y" ]]; then
         exit 1
     fi
 fi
 
-# --- Configuration prompts ---
-echo "Available timezones - examples:"
-echo "  Europe/London, Europe/Paris, America/New_York"
-echo "List all: ls /usr/share/zoneinfo/"
-read -p "Enter your timezone: " TIMEZONE
+# --- Configuration prompts with retry loops ---
 
-# Validate timezone
-if [[ ! -f "/usr/share/zoneinfo/$TIMEZONE" ]]; then
-    echo "ERROR: Invalid timezone '$TIMEZONE'"
-    exit 1
-fi
+# Timezone
+while true; do
+    echo ""
+    echo "Timezone (e.g., Europe/London, America/New_York)"
+    read -p "> " TIMEZONE
+    if [[ -f "/usr/share/zoneinfo/$TIMEZONE" ]]; then
+        echo "✓ Valid timezone"
+        break
+    else
+        echo "✗ Invalid timezone. Try: ls /usr/share/zoneinfo/ | less"
+    fi
+done
 
-echo ""
-echo "Available locales - examples:"
-echo "  en_US.UTF-8, en_GB.UTF-8, de_DE.UTF-8, fr_FR.UTF-8"
-read -p "Enter your locale: " LOCALE
+# Locale
+while true; do
+    echo ""
+    echo "Locale (e.g., en_GB.UTF-8, en_US.UTF-8)"
+    read -p "> " LOCALE
+    if [[ $LOCALE =~ ^[a-z]{2}_[A-Z]{2}\.UTF-8$ ]]; then
+        echo "✓ Valid locale format"
+        break
+    else
+        echo "✗ Invalid format. Use: language_COUNTRY.UTF-8"
+    fi
+done
 
-# Validate locale format
-if [[ ! $LOCALE =~ ^[a-z]{2}_[A-Z]{2}\.UTF-8$ ]]; then
-    echo "ERROR: Invalid locale format. Use format: en_GB.UTF-8"
-    exit 1
-fi
+# Keymap
+while true; do
+    echo ""
+    echo "Keyboard layout (e.g., us, uk, de, fr)"
+    read -p "> " KEYMAP
+    if loadkeys "$KEYMAP" 2>/dev/null; then
+        echo "✓ Keymap loaded successfully"
+        break
+    else
+        echo "✗ Invalid keymap. Try: localectl list-keymaps | less"
+    fi
+done
 
-echo ""
-echo "Available keymaps - examples:"
-echo "  us, uk, de, fr, es"
-echo "List all: localectl list-keymaps"
-read -p "Enter your keyboard layout: " KEYMAP
+# Hostname
+while true; do
+    echo ""
+    echo "Hostname (computer name)"
+    read -p "> " HOSTNAME
+    if [[ -n "$HOSTNAME" && $HOSTNAME =~ ^[a-zA-Z0-9-]+$ ]]; then
+        echo "✓ Valid hostname"
+        break
+    else
+        echo "✗ Use letters, numbers, and hyphens only"
+    fi
+done
 
-# Test keymap
-if ! loadkeys "$KEYMAP" 2>/dev/null; then
-    echo "ERROR: Invalid keymap '$KEYMAP'"
-    exit 1
-fi
+# Username
+while true; do
+    echo ""
+    echo "Username (lowercase letters/numbers)"
+    read -p "> " USERNAME
+    if [[ $USERNAME =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+        echo "✓ Valid username"
+        break
+    else
+        echo "✗ Must start with lowercase letter, use lowercase/numbers/underscore/hyphen"
+    fi
+done
 
-echo ""
-read -p "Enter your hostname: " HOSTNAME
+# Password
+while true; do
+    echo ""
+    read -sp "Password (min 6 characters): " USER_PASSWORD
+    echo
+    read -sp "Confirm password: " USER_PASSWORD_CONFIRM
+    echo
+    
+    if [[ "$USER_PASSWORD" != "$USER_PASSWORD_CONFIRM" ]]; then
+        echo "✗ Passwords don't match"
+    elif [[ ${#USER_PASSWORD} -lt 6 ]]; then
+        echo "✗ Password too short (min 6 characters)"
+    else
+        echo "✓ Password set"
+        break
+    fi
+done
 
-echo ""
-read -p "Enter your username: " USERNAME
+# Bootloader
+while true; do
+    echo ""
+    echo "Bootloader:"
+    echo "  1) systemd-boot (simple, recommended)"
+    echo "  2) GRUB (traditional)"
+    read -p "Choice (1/2): " BOOTLOADER_CHOICE
+    
+    case $BOOTLOADER_CHOICE in
+        1) BOOTLOADER="systemd-boot"; echo "✓ systemd-boot selected"; break ;;
+        2) BOOTLOADER="grub"; echo "✓ GRUB selected"; break ;;
+        *) echo "✗ Enter 1 or 2" ;;
+    esac
+done
 
-# Validate username
-if [[ ! $USERNAME =~ ^[a-z_][a-z0-9_-]*$ ]]; then
-    echo "ERROR: Invalid username. Use lowercase letters, numbers, underscore, hyphen."
-    exit 1
-fi
+# Filesystem
+while true; do
+    echo ""
+    echo "Root filesystem:"
+    echo "  1) ext4 (recommended, stable)"
+    echo "  2) btrfs (snapshots, compression)"
+    echo "  3) xfs (high performance)"
+    read -p "Choice (1/2/3): " FS_CHOICE
+    
+    case $FS_CHOICE in
+        1) FILESYSTEM="ext4"; echo "✓ ext4 selected"; break ;;
+        2) FILESYSTEM="btrfs"; echo "✓ btrfs selected"; break ;;
+        3) FILESYSTEM="xfs"; echo "✓ xfs selected"; break ;;
+        *) echo "✗ Enter 1, 2, or 3" ;;
+    esac
+done
 
-echo ""
-read -sp "Enter your password: " USER_PASSWORD
-echo
-read -sp "Confirm your password: " USER_PASSWORD_CONFIRM
-echo
+# Target disk
+while true; do
+    echo ""
+    echo "Available disks:"
+    lsblk -d -o NAME,SIZE,TYPE | grep disk
+    echo ""
+    echo "⚠️  WARNING: Target disk will be COMPLETELY WIPED"
+    read -p "Target disk (e.g., /dev/sda): " TARGET_DISK
+    
+    if [[ ! -b "$TARGET_DISK" ]]; then
+        echo "✗ Disk not found"
+        continue
+    fi
+    
+    DISK_SIZE=$(lsblk -b -d -o SIZE -n "$TARGET_DISK")
+    DISK_SIZE_GB=$((DISK_SIZE / 1024 / 1024 / 1024))
+    
+    if [[ $DISK_SIZE_GB -lt 32 ]]; then
+        echo "✗ Disk too small ($DISK_SIZE_GB GB, need 32GB+)"
+        continue
+    fi
+    
+    echo "✓ Valid disk: $TARGET_DISK ($DISK_SIZE_GB GB)"
+    break
+done
 
-if [[ "$USER_PASSWORD" != "$USER_PASSWORD_CONFIRM" ]]; then
-    echo "ERROR: Passwords don't match."
-    exit 1
-fi
+# Security warning
+while true; do
+    echo ""
+    echo "=== SECURITY NOTICE ==="
+    echo "UFW firewall will be installed but NOT enabled."
+    echo "After installation, enable it with: sudo ufw enable"
+    echo ""
+    read -p "Type 'OK' to acknowledge: " UFW_ACK
+    
+    if [[ "$UFW_ACK" == "OK" ]]; then
+        break
+    else
+        echo "✗ Type 'OK' exactly"
+    fi
+done
 
-if [[ ${#USER_PASSWORD} -lt 6 ]]; then
-    echo "ERROR: Password must be at least 6 characters."
-    exit 1
-fi
-
-echo ""
-echo "Choose bootloader:"
-echo "1) systemd-boot (recommended, simple, UEFI only)"
-echo "2) GRUB (traditional, more features)"
-read -p "Enter choice (1 or 2): " BOOTLOADER_CHOICE
-
-case $BOOTLOADER_CHOICE in
-    1) BOOTLOADER="systemd-boot" ;;
-    2) BOOTLOADER="grub" ;;
-    *) echo "ERROR: Invalid choice."; exit 1 ;;
-esac
-
-echo ""
-echo "Choose root filesystem:"
-echo "1) ext4 (recommended, stable, proven)"
-echo "2) btrfs (modern, snapshots, compression)"
-echo "3) xfs (high performance, large files)"
-read -p "Enter choice (1, 2, or 3): " FS_CHOICE
-
-case $FS_CHOICE in
-    1) FILESYSTEM="ext4" ;;
-    2) FILESYSTEM="btrfs" ;;
-    3) FILESYSTEM="xfs" ;;
-    *) echo "ERROR: Invalid choice."; exit 1 ;;
-esac
-
-echo ""
-echo "Available disks:"
-lsblk -d -o NAME,SIZE,TYPE | grep disk
-echo ""
-echo "!!! WARNING: THIS WILL WIPE THE TARGET DISK !!!"
-read -p "Enter the target disk (e.g., /dev/sda or /dev/nvme0n1): " TARGET_DISK
-
-# Validate disk exists
-if [[ ! -b "$TARGET_DISK" ]]; then
-    echo "ERROR: Disk '$TARGET_DISK' does not exist."
-    exit 1
-fi
-
-DISK_SIZE=$(lsblk -b -d -o SIZE -n "$TARGET_DISK")
-DISK_SIZE_GB=$((DISK_SIZE / 1024 / 1024 / 1024))
-if [[ $DISK_SIZE_GB -lt 32 ]]; then
-    echo "ERROR: Disk is too small ($DISK_SIZE_GB GB). Need at least 32GB."
-    exit 1
-fi
-
-echo ""
-echo "=== IMPORTANT SECURITY WARNING ==="
-echo "UFW (firewall) will be installed but NOT enabled by default."
-echo "After installation, you should enable it with: sudo ufw enable"
-echo "This allows you to test your system first before blocking ports."
-echo ""
-read -p "Type 'I UNDERSTAND' to acknowledge: " UFW_ACK
-
-if [[ "$UFW_ACK" != "I UNDERSTAND" ]]; then
-    echo "Aborted."
-    exit 1
-fi
-
-echo ""
-echo "=== Configuration Summary ==="
-echo "Timezone: $TIMEZONE"
-echo "Locale: $LOCALE"
-echo "Keymap: $KEYMAP"
-echo "Hostname: $HOSTNAME"
-echo "Username: $USERNAME"
-echo "Bootloader: $BOOTLOADER"
-echo "Filesystem: $FILESYSTEM"
-echo "Target disk: $TARGET_DISK ($DISK_SIZE_GB GB)"
-echo "Swap: 512MB zram + 2GB swap file"
-echo ""
-read -p "Are you 100% sure you want to wipe $TARGET_DISK? Type YES to continue: " CONFIRM
-
-if [[ "$CONFIRM" != "YES" ]]; then
-    echo "Aborted."
-    exit 1
-fi
+# Final confirmation
+while true; do
+    echo ""
+    echo "=== FINAL CONFIRMATION ==="
+    echo "Timezone:   $TIMEZONE"
+    echo "Locale:     $LOCALE"
+    echo "Keymap:     $KEYMAP"
+    echo "Hostname:   $HOSTNAME"
+    echo "Username:   $USERNAME"
+    echo "Bootloader: $BOOTLOADER"
+    echo "Filesystem: $FILESYSTEM"
+    echo "Disk:       $TARGET_DISK ($DISK_SIZE_GB GB)"
+    echo "Swap:       512MB zram + 2GB swap file"
+    echo ""
+    echo "⚠️  $TARGET_DISK WILL BE COMPLETELY WIPED"
+    echo ""
+    read -p "Type 'YES' to proceed: " CONFIRM
+    
+    if [[ "$CONFIRM" == "YES" ]]; then
+        echo "✓ Starting installation..."
+        break
+    else
+        echo "✗ Type 'YES' exactly (or Ctrl+C to abort)"
+    fi
+done
 
 # --- 1. Update mirrorlist with reflector ---
 echo "Updating mirrorlist with fastest European mirrors..."
@@ -909,6 +953,7 @@ echo "- SUPER+L: Lock screen"
 echo "- SUPER+SHIFT+S: Screenshot"
 echo ""
 echo "========================================"
+
 
 
 
