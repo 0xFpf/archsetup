@@ -266,7 +266,7 @@ mount "$EFI_PART" /mnt/boot
 echo "Installing base system (this will take a while)..."
 PACKAGES="base base-devel linux linux-firmware intel-ucode neovim git sudo \
 networkmanager wpa_supplicant hyprland wayland-protocols waybar hyprpaper sof-firmware \
-mako xdg-desktop-portal-hyprland xorg-xwayland kitty zsh starship \
+mako xdg-desktop-portal-hyprland xorg-xwayland kitty zsh starship efibootmgr \
 htop ncdu firefox curl wget pipewire pipewire-pulse pipewire-alsa wireplumber \
 pavucontrol playerctl ttf-fira-code noto-fonts noto-fonts-emoji \
 libinput xf86-input-libinput greetd greetd-agreety brightnessctl swaylock thunar dosfstools \
@@ -280,11 +280,6 @@ case $FILESYSTEM in
     btrfs) PACKAGES="$PACKAGES btrfs-progs" ;;
     xfs) PACKAGES="$PACKAGES xfsprogs" ;;
 esac
-
-# Add bootloader packages
-if [[ $BOOTLOADER == "grub" ]]; then
-    PACKAGES="$PACKAGES grub efibootmgr"
-fi
 
 echo "Verifying build dependencies..."
 if ! pacman -Si base-devel &>/dev/null; then
