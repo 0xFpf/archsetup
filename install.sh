@@ -273,7 +273,7 @@ libinput xf86-input-libinput greetd greetd-agreety brightnessctl swaylock thunar
 broadcom-wl-dkms linux-headers reflector \
 tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
 xdg-user-dirs grim slurp wl-clipboard satty ufw zram-generator \
-man-db man-pages fuzzel efibootmgr"
+man-db man-pages fuzzel"
 
 # Add filesystem tools
 case $FILESYSTEM in
@@ -443,12 +443,16 @@ elif [[ \$BOOTLOADER == "grub" ]]; then
 fi
 
 # --- Verify NVRAM boot entries ---
-echo "Verifying NVRAM boot entries..."
-efibootmgr -v
-if ! efibootmgr | grep -i "arch\|grub"; then
-    echo "WARNING: No Arch/GRUB boot entry found in NVRAM!"
-    echo "This may indicate a problem with EFI variables."
-    echo "Boot entries shown above - please verify manually."
+if command -v efibootmgr &>/dev/null; then
+    efibootmgr -v
+    if ! efibootmgr | grep -i "arch\|grub"; then
+        echo "WARNING: No Arch/GRUB boot entry found in NVRAM!"
+        echo "This may indicate a problem with EFI variables."
+        echo "Boot entries shown above - please verify manually."
+    fi
+else
+    echo "WARNING: efibootmgr not available - skipping NVRAM verification"
+    echo "Boot entry was created but cannot be verified from chroot"
 fi
 
 # --- Create regular user ---
@@ -823,11 +827,23 @@ cd yay
 makepkg -si --noconfirm
 
 # Install AUR packages
-yay -S --noconfirm mbpfan-git || echo "⚠️  Warning: mbpfan-git failed to install"
-yay -S --noconfirm bcwc-pcie-git || echo "⚠️  Warning: bcwc-pcie-git failed to install"
-yay -S --noconfirm libinput-gestures || echo "⚠️  Warning: libinput-gestures failed to install"
-yay -S --noconfirm kbdlight || echo "⚠️  Warning: kbdlight failed to install"
-
+sudo -u "\$USERNAME" bash <<'EOFUSER'
+cd /tmp
+if git clone https://aur.archlinux.org/yay.git 2>/dev/null; then
+    cd yay
+    if makepkg -si --noconfirm; then
+        echo "✓ yay installed successfully"
+        # Install AUR packages
+        yay -S --noconfirm mbpfan-git || echo "⚠️  Warning: mbpfan-git failed to install"
+        yay -S --noconfirm bcwc-pcie-git || echo "⚠️  Warning: bcwc-pcie-git failed to install"
+        yay -S --noconfirm libinput-gestures || echo "⚠️  Warning: libinput-gestures failed to install"
+        yay -S --noconfirm kbdlight || echo "⚠️  Warning: kbdlight failed to install"
+    else
+        echo "⚠️  Warning: yay installation failed - skipping AUR packages"
+    fi
+else
+    echo "⚠️  Warning: Could not clone yay repository - skipping AUR packages"
+fi
 EOFUSER
 
 # --- Configure mbpfan ---
