@@ -198,9 +198,11 @@ done
 
 # --- 1. Update mirrorlist with reflector ---
 echo "Updating mirrorlist with fastest European mirrors..."
-pacman -Sy --noconfirm reflector
-reflector --country GB,FR,DE,NL,BE,SE,NO,DK,PL --protocol https --latest 20 --sort rate --save /etc/pacman.d/mirrorlist
-echo "Mirrorlist updated!"
+if pacman -Sy --noconfirm reflector && reflector --country GB,FR,DE,NL,BE,SE,NO,DK,PL --protocol https --latest 20 --sort rate --save /etc/pacman.d/mirrorlist; then
+    echo "Mirrorlist updated!"
+else
+    echo "⚠️  Mirror update failed, using existing mirrorlist"
+fi
 
 # --- Enable parallel downloads ---
 echo "Enabling parallel downloads..."
