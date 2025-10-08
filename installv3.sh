@@ -286,15 +286,17 @@ mount "$EFI_PART" /mnt/boot
 # --- 7. Install base system ---
 echo "Installing base system (this will take a while)..."
 PACKAGES="base base-devel linux linux-firmware intel-ucode neovim git sudo \
-networkmanager wpa_supplicant hyprland wayland-protocols waybar hyprpaper sof-firmware \
-mako xdg-desktop-portal-hyprland xorg-xwayland kitty zsh starship efibootmgr \
+networkmanager wpa_supplicant sof-firmware \
+mako xorg-xwayland kitty zsh starship efibootmgr \
 htop ncdu firefox curl wget pipewire pipewire-pulse pipewire-alsa wireplumber \
 pavucontrol playerctl ttf-fira-code noto-fonts noto-fonts-emoji \
 libinput xf86-input-libinput greetd greetd-agreety brightnessctl swaylock thunar dosfstools \
 broadcom-wl-dkms linux-headers reflector \
 tlp tlp-rdw thermald acpi acpid ntfs-3g exfatprogs unzip polkit polkit-gnome \
 xdg-user-dirs grim slurp wl-clipboard satty ufw zram-generator \
-man-db man-pages fuzzel"
+man-db man-pages fuzzel \
+hyprland hyprutils aquamarine hyprlang hyprgraphics hyprland-qtutils \
+wayland-protocols waybar hyprpaper xdg-desktop-portal-hyprland"
 
 # Add filesystem tools
 case $FILESYSTEM in
